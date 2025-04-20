@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Docker Image Tester</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Docker Image Tester</h1>
+        <form id="deploy-form">
+            <div class="form-group">
+                <label for="docker-image-ref">Enter Docker Hub Image Reference:</label>
+                <input type="text" id="docker-image-ref" placeholder="username/image:tag" class="image-ref-input" required>
+                <p class="input-help">Example: nginx:latest, ubuntu:20.04</p>
+            </div>
+            <button type="submit" class="submit-button">Deploy Container</button>
+        </form>
+        <div id="result" class="result-container"></div>
+    </div>
+
+    <script>
+        document.getElementById('deploy-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const imageRef = document.getElementById('docker-image-ref').value.trim();
+            const resultDiv = document.getElementById('result');
+            
+            if (!imageRef) {
+                resultDiv.innerHTML = '<p class="error">Please enter a Docker image reference</p>';
+                return;
+            }
+            
+            // Show loading state
+            resultDiv.innerHTML = '<p class="loading">Deploying container...</p>';
+            
+            // Send POST request to /deploy endpoint
+            fetch('/deploy', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ imageRef })
+            })
+            .then(response => response.json())
+            .then(data => {
+                resultDiv.innerHTML = `
+                    <p class="success">✅ ${data.message}</p>
+                    <p>Access your container at: <a href="${data.url}" target="_blank">${data.url}</a></p>
+                `;
+            })
+            .catch(error => {
+                resultDiv.innerHTML = `<p class="error">❌ Error: ${error.message}</p>`;
+            });
+        });
+    </script>
+</body>
+</html>
