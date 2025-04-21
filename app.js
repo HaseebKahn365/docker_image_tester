@@ -46,83 +46,112 @@ app.post('/deploy', async (req, res) => {
     console.log(`Received Docker image reference: ${imageRef}`);
     
     try {
-        // Create a stream to track the pull progress
-        const stream = await docker.pull(imageRef);
-        
-        // Process the stream to track progress
-        docker.modem.followProgress(stream, onFinished, onProgress);
-        
-        // Handle each progress update
-        function onProgress(event) {
-            console.log(`Pull progress: ${JSON.stringify(event)}`);
+        // First check if Docker daemon is accessible
+        try {
+            await docker.ping();
+        } catch (dockerErr) {
+            if (dockerErr.code === 'EACCES') {
+                return res.status(500).json({
+                    error: 'Docker permission error',
+                    details: 'Unable to access Docker. Please make sure Docker is running and you have the necessary permissions.',
+                    code: 'EACCES'
+                });
+            }
+            throw dockerErr;
         }
-        
-        // Handle completion of the pull
-        async function onFinished(err, output) {
-            if (err) {
-                console.error('Error pulling image:', err);
-                return res.status(500).json({ 
-                    error: 'Failed to pull the Docker image',
-                    details: err.message
-                });
+
+        // Create a stream to track the pull progress
+        try {
+            const stream = await docker.pull(imageRef);
+            
+            // Process the stream to track progress
+            docker.modem.followProgress(stream, onFinished, onProgress);
+            
+            // Handle each progress update
+            function onProgress(event) {
+                console.log(`Pull progress: ${JSON.stringify(event)}`);
             }
             
-            console.log(`Successfully pulled Docker image: ${imageRef}`);
-            
-            try {
-                // Generate a unique port for this container
-                const hostPort = Math.floor(Math.random() * (65535 - 49152)) + 49152;
-                // Create a sanitized container name from the image reference
-                const containerName = `app-${imageRef.replace(/[\/:\.]*/g, '-')}-${Date.now()}`;
+            // Handle completion of the pull
+            async function onFinished(err, output) {
+                if (err) {
+                    console.error('Error pulling image:', err);
+                    let errorMessage = 'Failed to pull the Docker image';
+                    if (err.message.includes('not found')) {
+                        return res.status(404).json({
+                            error: 'Image not found',
+                            details: `The image "${imageRef}" was not found on Docker Hub`
+                        });
+                    }
+                    return res.status(500).json({ 
+                        error: errorMessage,
+                        details: err.message
+                    });
+                }
                 
-                // Create the container with resource limits and port mapping
-                const container = await docker.createContainer({
-                    Image: imageRef,
-                    name: containerName,
-                    HostConfig: {
-                        PortBindings: {
-                            '80/tcp': [{ HostPort: hostPort.toString() }]
+                console.log(`Successfully pulled Docker image: ${imageRef}`);
+                
+                try {
+                    // Generate a unique port for this container
+                    const hostPort = Math.floor(Math.random() * (65535 - 49152)) + 49152;
+                    // Create a sanitized container name from the image reference
+                    const containerName = `app-${imageRef.replace(/[\/:\.]*/g, '-')}-${Date.now()}`;
+                    
+                    // Create the container with resource limits and port mapping
+                    const container = await docker.createContainer({
+                        Image: imageRef,
+                        name: containerName,
+                        HostConfig: {
+                            PortBindings: {
+                                '80/tcp': [{ HostPort: hostPort.toString() }]
+                            },
+                            Memory: 128 * 1024 * 1024, // 128MB RAM limit
+                            NanoCPUs: 1000000000, // 1 CPU core limit (in nanoseconds)
+                            RestartPolicy: {
+                                Name: 'on-failure',
+                                MaximumRetryCount: 3
+                            }
                         },
-                        Memory: 128 * 1024 * 1024, // 128MB RAM limit
-                        NanoCPUs: 1000000000, // 1 CPU core limit (in nanoseconds)
-                        RestartPolicy: {
-                            Name: 'on-failure',
-                            MaximumRetryCount: 3
+                        ExposedPorts: {
+                            '80/tcp': {}
                         }
-                    },
-                    ExposedPorts: {
-                        '80/tcp': {}
-                    }
-                });
-                
-                // Start the container
-                await container.start();
-                console.log(`Container ${containerName} started on port ${hostPort}`);
-                
-                // Get server's IP or hostname (using localhost for development)
-                // In production, you would use the actual VM's public IP
-                const hostname = 'localhost';
-                
-                res.json({
-                    message: `Successfully deployed Docker image: ${imageRef}`,
-                    containerName: containerName,
-                    url: `http://${hostname}:${hostPort}/`,
-                    details: {
-                        image: imageRef,
-                        port: hostPort,
-                        resources: {
-                            memory: '128MB',
-                            cpu: '1 core'
+                    });
+                    
+                    // Start the container
+                    await container.start();
+                    console.log(`Container ${containerName} started on port ${hostPort}`);
+                    
+                    // Get server's IP or hostname (using localhost for development)
+                    // In production, you would use the actual VM's public IP
+                    const hostname = 'localhost';
+                    
+                    res.json({
+                        message: `Successfully deployed Docker image: ${imageRef}`,
+                        containerName: containerName,
+                        url: `http://${hostname}:${hostPort}/`,
+                        details: {
+                            image: imageRef,
+                            port: hostPort,
+                            resources: {
+                                memory: '128MB',
+                                cpu: '1 core'
+                            }
                         }
-                    }
-                });
-            } catch (containerError) {
-                console.error('Error creating/starting container:', containerError);
-                res.status(500).json({ 
-                    error: 'Failed to deploy the container',
-                    details: containerError.message
-                });
+                    });
+                } catch (containerError) {
+                    console.error('Error creating/starting container:', containerError);
+                    res.status(500).json({ 
+                        error: 'Failed to deploy the container',
+                        details: containerError.message
+                    });
+                }
             }
+        } catch (pullError) {
+            console.error('Error pulling Docker image:', pullError);
+            res.status(500).json({
+                error: 'Failed to pull the Docker image',
+                details: pullError.message
+            });
         }
     } catch (error) {
         console.error('Error processing Docker image:', error);

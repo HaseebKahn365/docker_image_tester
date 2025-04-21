@@ -43,15 +43,36 @@
                 },
                 body: JSON.stringify({ imageRef })
             })
-            .then(response => response.json())
+            .then(response => {
+                if (!response.ok) {
+                    return response.json().then(err => Promise.reject(err));
+                }
+                return response.json();
+            })
             .then(data => {
+                if (data.error) {
+                    throw data;
+                }
                 resultDiv.innerHTML = `
                     <p class="success">✅ ${data.message}</p>
-                    <p>Access your container at: <a href="${data.url}" target="_blank">${data.url}</a></p>
+                    <div class="deployment-details">
+                        <p>Access your container at: <a href="${data.url}" target="_blank">${data.url}</a></p>
+                        <p>Container Name: ${data.containerName}</p>
+                        <p>Resources: ${data.details.resources.memory} RAM, ${data.details.resources.cpu}</p>
+                    </div>
                 `;
             })
             .catch(error => {
-                resultDiv.innerHTML = `<p class="error">❌ Error: ${error.message}</p>`;
+                const errorMessage = error.error || error.message || 'Failed to deploy container';
+                const errorDetails = error.details ? `<br>Details: ${error.details}` : '';
+                resultDiv.innerHTML = `
+                    <div class="error-container">
+                        <p class="error">❌ Error: ${errorMessage}${errorDetails}</p>
+                        ${error.code === 'EACCES' ? 
+                            '<p class="error-hint">Note: Docker socket permission error. Please make sure Docker is running and you have the necessary permissions.</p>' 
+                            : ''}
+                    </div>
+                `;
             });
         });
     </script>
