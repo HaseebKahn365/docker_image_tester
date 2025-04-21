@@ -2,6 +2,16 @@ const express = require('express');
 const multer = require('multer');
 const path = require('path');
 const Docker = require('dockerode');
+const os = require('os');
+
+// Function to get the VM's IP address
+function getVmIpAddress() {
+    const networkInterfaces = os.networkInterfaces();
+    const ipAddress = Object.values(networkInterfaces)
+        .flat()
+        .find(iface => iface.family === 'IPv4' && !iface.internal);
+    return ipAddress ? ipAddress.address : 'localhost';
+}
 
 const app = express();
 const docker = new Docker(); // Connect to the default Docker socket
@@ -121,9 +131,8 @@ app.post('/deploy', async (req, res) => {
                     await container.start();
                     console.log(`Container ${containerName} started on port ${hostPort}`);
                     
-                    // Get server's IP or hostname (using localhost for development)
-                    // In production, you would use the actual VM's public IP
-                    const hostname = 'localhost';
+                    // Get the VM's actual IP address
+                    const hostname = getVmIpAddress();
                     
                     res.json({
                         message: `Successfully deployed Docker image: ${imageRef}`,
@@ -132,6 +141,7 @@ app.post('/deploy', async (req, res) => {
                         details: {
                             image: imageRef,
                             port: hostPort,
+                            ip: hostname,
                             resources: {
                                 memory: '128MB',
                                 cpu: '1 core'
@@ -163,6 +173,7 @@ app.post('/deploy', async (req, res) => {
 });
 
 const PORT = 3000;
-app.listen(PORT, () => {
-    console.log(`Server is running on http://localhost:${PORT}`);
+app.listen(PORT, '0.0.0.0', () => {
+    const vmIp = getVmIpAddress();
+    console.log(`Server is running on http://${vmIp}:${PORT}`);
 });
