@@ -45,6 +45,12 @@ app.use(express.static(__dirname));
 io.on('connection', (socket) => {
     console.log('Client connected');
     
+    // Handle joining deployment rooms for log streaming
+    socket.on('join', (room) => {
+        socket.join(room);
+        console.log(`Client joined room: ${room}`);
+    });
+    
     socket.on('disconnect', () => {
         console.log('Client disconnected');
     });
@@ -58,21 +64,6 @@ function createDeploymentId() {
 // Utility to check if a repository is a Node.js project
 function isNodeJsProject(repoPath) {
     return fs.existsSync(path.join(repoPath, 'package.json'));
-}
-
-// Utility to determine the start command for a Node.js project
-function getNodeStartCommand(repoPath) {
-    const packageJson = JSON.parse(fs.readFileSync(path.join(repoPath, 'package.json'), 'utf8'));
-    
-    if (packageJson.scripts && packageJson.scripts.start) {
-        return 'npm start';
-    } else if (packageJson.scripts && packageJson.scripts.dev) {
-        return 'npm run dev';
-    } else if (packageJson.main) {
-        return `node ${packageJson.main}`;
-    } else {
-        return 'node index.js'; // Default fallback
-    }
 }
 
 // Setup proxy server for forwarding requests to deployed apps
@@ -276,8 +267,8 @@ app.post('/deploy', async (req, res) => {
                             type: 'success'
                         });
                         
-                        // Start the Node.js application
-                        const startCommand = getNodeStartCommand(repoDir);
+                        // Always use npm start for Node.js applications
+                        const startCommand = 'npm start';
                         io.to(deploymentRoom).emit('log', { 
                             message: `Starting application with: ${startCommand}`,
                             type: 'info'
