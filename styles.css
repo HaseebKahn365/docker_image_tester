@@ -83,6 +83,23 @@ label {
     background-color: #2980b9;
 }
 
+/* Copy button styling */
+.copy-button {
+    background-color: #3498db;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 6px 12px;
+    margin-top: 8px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background-color 0.3s;
+}
+
+.copy-button:hover {
+    background-color: #2980b9;
+}
+
 /* Result Container */
 .result-container {
     margin-top: 20px;

@@ -178,7 +178,11 @@
                                 <p>Deployment ID: ${data.id}</p>
                                 <p>Status: <span class="status-running">Running</span></p>
                                 <p>Type: ${data.type === 'nodejs' ? 'Node.js Application' : 'Static Website'}</p>
-                                <p>Access URL: <a href="${data.url}" target="_blank">${data.url}</a></p>
+                                <p>Access URL: <strong><a href="${data.url}" target="_blank">${data.url}</a></strong></p>
+                                <div style="margin-top: 15px; background-color: #e6f7e9; padding: 10px; border-radius: 5px;">
+                                    <p>🌐 Your app is now live at: <span style="font-weight: bold;">${data.url}</span></p>
+                                    <button class="copy-button" onclick="navigator.clipboard.writeText('${data.url}').then(() => alert('URL copied to clipboard!'))">Copy URL</button>
+                                </div>
                                 <button class="cleanup-button" onclick="cleanupDeployment('${data.id}')">Stop & Cleanup</button>
                             `;
                             
@@ -221,7 +225,11 @@
                     <p>Deployment ID: ${deploymentId}</p>
                     <p>Status: <span class="status-running">Running</span></p>
                     <p>Type: ${data.type === 'nodejs' ? 'Node.js Application' : 'Static Website'}</p>
-                    <p>Access URL: <a href="${data.url}" target="_blank">${data.url}</a></p>
+                    <p>Access URL: <strong><a href="${data.url}" target="_blank">${data.url}</a></strong></p>
+                    <div style="margin-top: 15px; background-color: #e6f7e9; padding: 10px; border-radius: 5px;">
+                        <p>🌐 Your app is now live at: <span style="font-weight: bold;">${data.url}</span></p>
+                        <button class="copy-button" onclick="navigator.clipboard.writeText('${data.url}').then(() => alert('URL copied to clipboard!'))">Copy URL</button>
+                    </div>
                     <button class="cleanup-button" onclick="cleanupDeployment('${deploymentId}')">Stop & Cleanup</button>
                 `;
                 
@@ -309,7 +317,11 @@
                         <h3>Repository: ${data.repoUrl}</h3>
                         <p>Deployment ID: ${data.id}</p>
                         <p>Status: <span class="status-${data.status}">${data.status.charAt(0).toUpperCase() + data.status.slice(1)}</span></p>
-                        ${data.url ? `<p>Access URL: <a href="${data.url}" target="_blank">${data.url}</a></p>` : ''}
+                        ${data.url ? `<p>Access URL: <strong><a href="${data.url}" target="_blank">${data.url}</a></strong></p>
+                        <div style="margin-top: 15px; background-color: #e6f7e9; padding: 10px; border-radius: 5px;">
+                            <p>🌐 Your app is now live at: <span style="font-weight: bold;">${data.url}</span></p>
+                            <button class="copy-button" onclick="navigator.clipboard.writeText('${data.url}').then(() => alert('URL copied to clipboard!'))">Copy URL</button>
+                        </div>` : ''}
                         <button class="cleanup-button" onclick="cleanupDeployment('${data.id}')">Stop & Cleanup</button>
                     `;
                     

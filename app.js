@@ -12,11 +12,8 @@ const { v4: uuidv4 } = require('uuid');
 
 // Function to get the VM's IP address
 function getVmIpAddress() {
-    const networkInterfaces = os.networkInterfaces();
-    const ipAddress = Object.values(networkInterfaces)
-        .flat()
-        .find(iface => iface.family === 'IPv4' && !iface.internal);
-    return ipAddress ? ipAddress.address : 'localhost';
+    // Use the Azure VM's external IP address
+    return '51.124.184.252';
 }
 
 const app = express();
@@ -104,16 +101,24 @@ function resetInactivityTimer(appId) {
     
     // Set new timer
     appTimers[appId] = setTimeout(() => {
-        cleanupDeployment(appId);
+        cleanupDeployment(appId, true);
     }, INACTIVITY_TIMEOUT);
 }
 
 // Cleanup a deployment
-async function cleanupDeployment(id) {
+async function cleanupDeployment(id, isAutoCleanup = false) {
     const app = deployedApps[id];
     if (!app) return false;
     
-    console.log(`Cleaning up deployment: ${id}`);
+    console.log(`Cleaning up deployment: ${id} ${isAutoCleanup ? '(auto cleanup due to inactivity)' : ''}`);
+    
+    // Send cleanup notification to the room if auto cleanup
+    if (isAutoCleanup) {
+        io.to(`deployment-${id}`).emit('log', { 
+            message: `Deployment automatically cleaned up after ${INACTIVITY_TIMEOUT / 60000} minutes of inactivity`,
+            type: 'info'
+        });
+    }
     
     // Kill the process if it exists
     if (app.process) {
@@ -192,6 +197,7 @@ app.post('/deploy', async (req, res) => {
         // Clone the repository
         const git = simpleGit();
         
+        // Emit initial log message to the deployment room
         io.to(deploymentRoom).emit('log', { message: `Cloning repository: ${repoUrl}` });
         
         git.clone(repoUrl, repoDir, ['--depth', '1'], (err) => {
@@ -215,8 +221,8 @@ app.post('/deploy', async (req, res) => {
             const isNode = isNodeJsProject(repoDir);
             deployedApps[deploymentId].type = isNode ? 'nodejs' : 'static';
             
-            // Find an available port
-            portfinder.getPort({ startPort: 8080 }, async (err, port) => {
+            // Find an available port in the range 4000-4999
+            portfinder.getPort({ startPort: 4000, endPort: 4999 }, async (err, port) => {
                 if (err) {
                     io.to(deploymentRoom).emit('log', { 
                         message: `Error finding available port: ${err.message}`,
