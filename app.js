@@ -283,6 +283,73 @@ app.post('/deploy', async (req, res) => {
                         // Set PORT environment variable for the app
                         const env = { ...process.env, PORT: port };
                         
+                        // Generate config file to inject frame headers and environment variables
+                        try {
+                            const serverConfigPath = path.join(repoDir, 'server-config.js');
+                            fs.writeFileSync(serverConfigPath, `
+// Auto-generated configuration to allow iframe embedding
+module.exports = function(app) {
+    // Add headers to allow embedding in iframe
+    app.use((req, res, next) => {
+        res.setHeader('X-Frame-Options', 'ALLOWALL');
+        res.setHeader('Content-Security-Policy', '');
+        next();
+    });
+};
+`);
+                            io.to(deploymentRoom).emit('log', { 
+                                message: 'Generated server configuration for iframe support',
+                                type: 'info'
+                            });
+                            
+                            // Check if app.js or server.js exists, and if so, try to inject the config
+                            const appJsPath = path.join(repoDir, 'app.js');
+                            const serverJsPath = path.join(repoDir, 'server.js');
+                            const indexJsPath = path.join(repoDir, 'index.js');
+                            
+                            // Determine which file to modify
+                            let mainServerFile = null;
+                            if (fs.existsSync(appJsPath)) mainServerFile = appJsPath;
+                            else if (fs.existsSync(serverJsPath)) mainServerFile = serverJsPath;
+                            else if (fs.existsSync(indexJsPath)) mainServerFile = indexJsPath;
+                            
+                            if (mainServerFile) {
+                                // Try to inject config import into the server file
+                                try {
+                                    let serverContent = fs.readFileSync(mainServerFile, 'utf8');
+                                    if (serverContent.includes('express()')) {
+                                        // Server uses Express - inject our config
+                                        const configImport = `\nconst serverConfig = require('./server-config');\n`;
+                                        const appPattern = /const\s+app\s*=\s*express\(\);|let\s+app\s*=\s*express\(\);|var\s+app\s*=\s*express\(\);/;
+                                        
+                                        if (appPattern.test(serverContent)) {
+                                            // Insert after the app definition
+                                            serverContent = serverContent.replace(
+                                                appPattern,
+                                                `$&\n// Injected by deployer - allow iframe embedding\nserverConfig(app);`
+                                            );
+                                            
+                                            fs.writeFileSync(mainServerFile, serverContent);
+                                            io.to(deploymentRoom).emit('log', { 
+                                                message: `Updated ${path.basename(mainServerFile)} with iframe support`,
+                                                type: 'info'
+                                            });
+                                        }
+                                    }
+                                } catch (err) {
+                                    io.to(deploymentRoom).emit('log', { 
+                                        message: `Note: Could not automatically configure app for iframe support: ${err.message}`,
+                                        type: 'warning'
+                                    });
+                                }
+                            }
+                        } catch (configErr) {
+                            io.to(deploymentRoom).emit('log', { 
+                                message: `Warning: Could not create iframe configuration: ${configErr.message}`,
+                                type: 'warning'
+                            });
+                        }
+
                         const nodeApp = spawn(startCommand, [], {
                             cwd: repoDir,
                             shell: true,

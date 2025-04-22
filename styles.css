@@ -235,6 +235,53 @@ label {
     margin-top: 30px;
 }
 
+/* Preview Container Styles */
+.preview-container {
+    margin-top: 20px;
+    border-top: 1px solid #ddd;
+    padding-top: 20px;
+}
+
+.preview-status {
+    padding: 10px;
+    background-color: #f8f9fa;
+    border-left: 4px solid #3498db;
+    margin-bottom: 15px;
+    font-weight: 500;
+}
+
+.iframe-container {
+    position: relative;
+    width: 100%;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    overflow: hidden;
+    background-color: #f5f5f5;
+}
+
+.iframe-container iframe {
+    display: block;
+    width: 100%;
+    height: 600px;
+    border: none;
+    background-color: white;
+}
+
+.preview-error {
+    padding: 15px;
+    background-color: #fcecec;
+    border-left: 4px solid #e74c3c;
+    color: #c0392b;
+    margin-top: 15px;
+}
+
+.preview-loading {
+    padding: 20px;
+    text-align: center;
+    font-style: italic;
+    color: #7f8c8d;
+}
+
 .no-deployments {
     padding: 15px;
     background-color: #f8f9fa;

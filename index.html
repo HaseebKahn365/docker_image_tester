@@ -24,6 +24,15 @@
             <h2>Deployment Logs</h2>
             <div id="deployment-info" class="deployment-info"></div>
             <div id="logs" class="logs"></div>
+            
+            <!-- Added live preview iframe container -->
+            <div id="preview-container" class="preview-container" style="display: none; margin-top: 20px;">
+                <h2>Live Preview</h2>
+                <div class="preview-status" id="preview-status">Waiting for application to start...</div>
+                <div class="iframe-container">
+                    <iframe id="preview-frame" width="100%" height="600px" frameborder="0"></iframe>
+                </div>
+            </div>
         </div>
         
         <div id="deployments-container" class="deployments-container">
@@ -40,6 +49,70 @@
         
         // Track current deployment
         let currentDeployment = null;
+        
+        // Iframe retry mechanism
+        function setupIframeRetry(iframe, url, maxRetries = 5, delayMs = 3000) {
+            let retries = 0;
+            const previewStatus = document.getElementById('preview-status');
+            
+            // Function to check if the iframe loaded successfully
+            function checkIframeLoaded() {
+                if (retries >= maxRetries) {
+                    previewStatus.innerHTML = `
+                        <div class="preview-error">
+                            Unable to load preview after ${maxRetries} attempts. The app might not be ready yet or it might not support iframe embedding.
+                            <br>
+                            <a href="${url}" target="_blank">Open in a new tab instead</a>
+                        </div>
+                    `;
+                    return;
+                }
+                
+                retries++;
+                previewStatus.textContent = `Checking if application is ready... (Attempt ${retries}/${maxRetries})`;
+                
+                // Try to ping the URL to see if it's accessible
+                fetch(url, { method: 'HEAD', mode: 'no-cors' })
+                    .then(() => {
+                        // URL is accessible, update iframe
+                        iframe.src = url;
+                        previewStatus.textContent = 'Application is running. Live preview below:';
+                    })
+                    .catch(() => {
+                        // URL is not accessible yet, retry after delay
+                        previewStatus.textContent = `Application is starting... (Attempt ${retries}/${maxRetries})`;
+                        setTimeout(checkIframeLoaded, delayMs);
+                    });
+            }
+            
+            // Start checking
+            checkIframeLoaded();
+        }
+        
+        // Handle frame load errors
+        function handleFrameError(iframe) {
+            iframe.addEventListener('error', function() {
+                document.getElementById('preview-status').innerHTML = `
+                    <div class="preview-error">
+                        Error loading the preview. The application might not support iframe embedding.
+                        <br>
+                        <a href="${iframe.src}" target="_blank">Open in a new tab instead</a>
+                    </div>
+                `;
+            });
+            
+            iframe.addEventListener('load', function() {
+                try {
+                    // Try to access iframe content - if it fails, it's likely a cross-origin issue
+                    if (iframe.contentWindow.location.href) {
+                        document.getElementById('preview-status').textContent = 'Application is running. Live preview below:';
+                    }
+                } catch (e) {
+                    // Cross-origin restriction, but the iframe might still be working
+                    document.getElementById('preview-status').textContent = 'Application is running. Live preview below (restricted by cross-origin policy):';
+                }
+            });
+        }
         
         // Handle form submission
         document.getElementById('deploy-form').addEventListener('submit', function(e) {
@@ -186,6 +259,15 @@
                                 <button class="cleanup-button" onclick="cleanupDeployment('${data.id}')">Stop & Cleanup</button>
                             `;
                             
+                            // Update iframe preview
+                            const previewContainer = document.getElementById('preview-container');
+                            const previewFrame = document.getElementById('preview-frame');
+                            const previewStatus = document.getElementById('preview-status');
+                            
+                            previewContainer.style.display = 'block';
+                            setupIframeRetry(previewFrame, data.url);
+                            handleFrameError(previewFrame);
+                            
                             // Stop polling if app is running
                             return;
                         }
@@ -232,6 +314,15 @@
                     </div>
                     <button class="cleanup-button" onclick="cleanupDeployment('${deploymentId}')">Stop & Cleanup</button>
                 `;
+                
+                // Update iframe preview
+                const previewContainer = document.getElementById('preview-container');
+                const previewFrame = document.getElementById('preview-frame');
+                const previewStatus = document.getElementById('preview-status');
+                
+                previewContainer.style.display = 'block';
+                setupIframeRetry(previewFrame, data.url);
+                handleFrameError(previewFrame);
                 
                 // Update the deployments list
                 loadDeployments();
@@ -325,6 +416,19 @@
                         <button class="cleanup-button" onclick="cleanupDeployment('${data.id}')">Stop & Cleanup</button>
                     `;
                     
+                    // Update iframe preview
+                    const previewContainer = document.getElementById('preview-container');
+                    const previewFrame = document.getElementById('preview-frame');
+                    const previewStatus = document.getElementById('preview-status');
+                    
+                    if (data.url) {
+                        previewContainer.style.display = 'block';
+                        setupIframeRetry(previewFrame, data.url);
+                        handleFrameError(previewFrame);
+                    } else {
+                        previewContainer.style.display = 'none';
+                    }
+                    
                     // Join socket room for this deployment
                     joinDeploymentRoom(deploymentId);
                 })
@@ -356,6 +460,10 @@
                     // If this was the current deployment, update UI
                     if (deploymentId === currentDeployment) {
                         document.getElementById('deployment-info').innerHTML += '<p class="success">Deployment has been stopped and cleaned up</p>';
+                        
+                        // Hide iframe preview
+                        const previewContainer = document.getElementById('preview-container');
+                        previewContainer.style.display = 'none';
                     }
                 })
                 .catch(error => {
