@@ -1,141 +1,301 @@
-body {
-    font-family: Arial, sans-serif;
-    background-color: #f4f4f9;
+/* Reset and Base Styles */
+* {
     margin: 0;
     padding: 0;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    height: 100vh;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    line-height: 1.6;
+    color: #333;
+    background-color: #f5f7fa;
 }
 
 .container {
-    text-align: center;
-    background: #ffffff;
-    padding: 30px;
-    border-radius: 10px;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    width: 400px;
+    max-width: 1000px;
+    margin: 0 auto;
+    padding: 20px;
 }
 
 h1 {
-    font-size: 24px;
-    color: #333;
-    margin-bottom: 20px;
+    text-align: center;
+    margin-bottom: 25px;
+    color: #2c3e50;
+    font-size: 32px;
 }
 
-form {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    width: 100%;
+h2 {
+    margin-top: 30px;
+    margin-bottom: 15px;
+    color: #34495e;
+    border-bottom: 2px solid #eaeaea;
+    padding-bottom: 8px;
 }
 
+/* Form Styles */
 .form-group {
-    width: 100%;
-    margin-bottom: 20px;
-    text-align: left;
+    margin-bottom: 15px;
 }
 
-.form-group label {
+label {
     display: block;
-    margin-bottom: 5px;
-    font-weight: bold;
-    color: #333;
+    margin-bottom: 8px;
+    font-weight: 600;
+    color: #2c3e50;
 }
 
-.image-ref-input {
+.repo-url-input {
     width: 100%;
     padding: 12px;
+    border: 2px solid #ddd;
+    border-radius: 6px;
     font-size: 16px;
-    margin-bottom: 5px;
-    border: 1px solid #ccc;
-    border-radius: 5px;
-    box-sizing: border-box;
+    transition: border-color 0.3s;
+}
+
+.repo-url-input:focus {
+    border-color: #3498db;
+    outline: none;
 }
 
 .input-help {
-    color: #6c757d;
-    font-size: 14px;
-    margin: 5px 0 0;
-    text-align: left;
+    margin-top: 6px;
+    font-size: 12px;
+    color: #7f8c8d;
 }
 
 .submit-button {
-    background: #28a745;
-    color: #fff;
-    padding: 12px 25px;
-    border: none;
-    border-radius: 5px;
-    cursor: pointer;
-    font-size: 16px;
-    transition: background 0.3s;
+    display: block;
     width: 100%;
+    padding: 12px;
+    background-color: #3498db;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.3s;
 }
 
 .submit-button:hover {
-    background: #218838;
+    background-color: #2980b9;
 }
 
+/* Result Container */
 .result-container {
     margin-top: 20px;
-    padding: 10px;
-    border-radius: 5px;
-    width: 100%;
-    box-sizing: border-box;
-}
-
-.success {
-    color: #28a745;
-    font-weight: bold;
-}
-
-.error {
-    color: #dc3545;
-    font-weight: bold;
-}
-
-.loading {
-    color: #17a2b8;
-    font-style: italic;
-}
-
-a {
-    color: #007bff;
-    text-decoration: none;
-}
-
-a:hover {
-    text-decoration: underline;
-}
-
-.error-container {
-    background-color: #fff5f5;
-    border: 1px solid #dc3545;
-    border-radius: 5px;
-    padding: 15px;
-    margin-top: 15px;
-}
-
-.error-hint {
-    color: #856404;
-    background-color: #fff3cd;
-    border: 1px solid #ffeeba;
-    border-radius: 5px;
-    padding: 10px;
-    margin-top: 10px;
-    font-size: 14px;
+    padding: 15px 0;
 }
 
 .deployment-details {
     background-color: #f8f9fa;
-    border: 1px solid #dee2e6;
-    border-radius: 5px;
+    border-left: 4px solid #3498db;
     padding: 15px;
     margin-top: 15px;
-    text-align: left;
+    border-radius: 4px;
 }
 
-.deployment-details p {
-    margin: 8px 0;
+.success {
+    padding: 10px;
+    background-color: #e6f7e9;
+    border-left: 4px solid #2ecc71;
+    color: #27ae60;
+    font-weight: 600;
+}
+
+.error {
+    padding: 10px;
+    background-color: #fcecec;
+    border-left: 4px solid #e74c3c;
+    color: #c0392b;
+    font-weight: 600;
+}
+
+.loading {
+    padding: 10px;
+    background-color: #edf7fa;
+    border-left: 4px solid #3498db;
+    color: #2980b9;
+    font-weight: 600;
+}
+
+.error-container {
+    margin-top: 15px;
+}
+
+/* Status Badge Styles */
+[class^="status-"] {
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.status-initializing {
+    background-color: #f39c12;
+    color: white;
+}
+
+.status-cloning {
+    background-color: #f39c12;
+    color: white;
+}
+
+.status-preparing {
+    background-color: #3498db;
+    color: white;
+}
+
+.status-running {
+    background-color: #2ecc71;
+    color: white;
+}
+
+.status-failed {
+    background-color: #e74c3c;
+    color: white;
+}
+
+.status-stopped {
+    background-color: #95a5a6;
+    color: white;
+}
+
+/* Logs Container */
+.logs-container {
+    margin-top: 30px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    background-color: white;
+}
+
+.deployment-info {
+    padding: 15px;
+    border-bottom: 1px solid #eee;
+}
+
+.deployment-info h3 {
+    margin-bottom: 10px;
+    color: #2c3e50;
+}
+
+.logs {
+    height: 300px;
+    overflow-y: auto;
+    padding: 10px;
+    background-color: #2c3e50;
+    color: #ecf0f1;
+    font-family: monospace;
+    border-radius: 0 0 6px 6px;
+}
+
+.log-message {
+    padding: 4px 0;
+    word-wrap: break-word;
+    border-bottom: 1px dashed rgba(255, 255, 255, 0.1);
+}
+
+.log-stderr {
+    color: #e74c3c;
+}
+
+.log-success {
+    color: #2ecc71;
+}
+
+.log-error {
+    color: #e74c3c;
+}
+
+.log-info {
+    color: #3498db;
+}
+
+/* Active Deployments */
+.deployments-container {
+    margin-top: 30px;
+}
+
+.no-deployments {
+    padding: 15px;
+    background-color: #f8f9fa;
+    border-radius: 6px;
+    text-align: center;
+    color: #7f8c8d;
+}
+
+.deployment-item {
+    margin-bottom: 15px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    background-color: white;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+    transition: transform 0.3s;
+}
+
+.deployment-item:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.deployment-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 15px;
+    border-bottom: 1px solid #eee;
+}
+
+.deployment-header h3 {
+    margin: 0;
+    color: #2c3e50;
+}
+
+.status-badge {
+    font-size: 12px;
+}
+
+.deployment-body {
+    padding: 15px;
+}
+
+.deployment-body p {
+    margin-bottom: 8px;
+}
+
+.deployment-actions {
+    margin-top: 15px;
+    display: flex;
+    gap: 10px;
+}
+
+.deployment-actions button {
+    padding: 8px 12px;
+    background-color: #3498db;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.3s;
+}
+
+.deployment-actions button:hover {
+    background-color: #2980b9;
+}
+
+.cleanup-button {
+    padding: 8px 12px;
+    background-color: #e74c3c;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.3s;
+    margin-top: 10px;
+}
+
+.cleanup-button:hover {
+    background-color: #c0392b;
 }

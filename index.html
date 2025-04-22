@@ -3,37 +3,61 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Docker Image Tester</title>
+    <title>GitHub Repository Deployer</title>
     <link rel="stylesheet" href="styles.css">
+    <script src="/socket.io/socket.io.js"></script>
 </head>
 <body>
     <div class="container">
-        <h1>Docker Image Tester</h1>
+        <h1>GitHub Repository Deployer</h1>
         <form id="deploy-form">
             <div class="form-group">
-                <label for="docker-image-ref">Enter Docker Hub Image Reference:</label>
-                <input type="text" id="docker-image-ref" placeholder="username/image:tag" class="image-ref-input" required>
-                <p class="input-help">Example: nginx:latest, ubuntu:20.04</p>
+                <label for="github-repo-url">Enter GitHub Repository URL:</label>
+                <input type="text" id="github-repo-url" placeholder="https://github.com/username/repo" class="repo-url-input" required>
+                <p class="input-help">Example: https://github.com/bradtraversy/react-crash-2021</p>
             </div>
-            <button type="submit" class="submit-button">Deploy Container</button>
+            <button type="submit" class="submit-button">Deploy Repo</button>
         </form>
         <div id="result" class="result-container"></div>
+        
+        <div id="logs-container" class="logs-container" style="display: none;">
+            <h2>Deployment Logs</h2>
+            <div id="deployment-info" class="deployment-info"></div>
+            <div id="logs" class="logs"></div>
+        </div>
+        
+        <div id="deployments-container" class="deployments-container">
+            <h2>Active Deployments</h2>
+            <div id="deployments-list" class="deployments-list">
+                <p class="no-deployments">No active deployments</p>
+            </div>
+        </div>
     </div>
 
     <script>
+        // Initialize Socket.IO
+        const socket = io();
+        
+        // Track current deployment
+        let currentDeployment = null;
+        
+        // Handle form submission
         document.getElementById('deploy-form').addEventListener('submit', function(e) {
             e.preventDefault();
             
-            const imageRef = document.getElementById('docker-image-ref').value.trim();
+            const repoUrl = document.getElementById('github-repo-url').value.trim();
             const resultDiv = document.getElementById('result');
             
-            if (!imageRef) {
-                resultDiv.innerHTML = '<p class="error">Please enter a Docker image reference</p>';
+            if (!repoUrl) {
+                resultDiv.innerHTML = '<p class="error">Please enter a GitHub repository URL</p>';
                 return;
             }
             
+            // Clear previous logs
+            document.getElementById('logs').innerHTML = '';
+            
             // Show loading state
-            resultDiv.innerHTML = '<p class="loading">Deploying container...</p>';
+            resultDiv.innerHTML = '<p class="loading">Starting deployment...</p>';
             
             // Send POST request to /deploy endpoint
             fetch('/deploy', {
@@ -41,7 +65,7 @@
                 headers: {
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({ imageRef })
+                body: JSON.stringify({ repoUrl })
             })
             .then(response => {
                 if (!response.ok) {
@@ -53,28 +77,286 @@
                 if (data.error) {
                     throw data;
                 }
+                
                 resultDiv.innerHTML = `
                     <p class="success">✅ ${data.message}</p>
                     <div class="deployment-details">
-                        <p>Access your container at: <a href="${data.url}" target="_blank">${data.url}</a></p>
-                        <p>Container Name: ${data.containerName}</p>
-                        <p>Resources: ${data.details.resources.memory} RAM, ${data.details.resources.cpu}</p>
+                        <p>Deployment ID: <strong>${data.deploymentId}</strong></p>
+                        <p>Status: <span id="status-${data.deploymentId}" class="status-initializing">Initializing</span></p>
                     </div>
                 `;
+                
+                // Set current deployment
+                currentDeployment = data.deploymentId;
+                
+                // Show logs container
+                document.getElementById('logs-container').style.display = 'block';
+                document.getElementById('deployment-info').innerHTML = `
+                    <h3>Repository: ${repoUrl}</h3>
+                    <p>Deployment ID: ${data.deploymentId}</p>
+                `;
+                
+                // Join the socket room for this deployment
+                joinDeploymentRoom(data.deploymentId);
+                
+                // Start polling for status
+                pollDeploymentStatus(data.deploymentId);
+                
+                // Load active deployments
+                loadDeployments();
             })
             .catch(error => {
-                const errorMessage = error.error || error.message || 'Failed to deploy container';
+                const errorMessage = error.error || error.message || 'Failed to deploy repository';
                 const errorDetails = error.details ? `<br>Details: ${error.details}` : '';
                 resultDiv.innerHTML = `
                     <div class="error-container">
                         <p class="error">❌ Error: ${errorMessage}${errorDetails}</p>
-                        ${error.code === 'EACCES' ? 
-                            '<p class="error-hint">Note: Docker socket permission error. Please make sure Docker is running and you have the necessary permissions.</p>' 
-                            : ''}
                     </div>
                 `;
             });
         });
+        
+        // Join a deployment room for real-time logs
+        function joinDeploymentRoom(deploymentId) {
+            socket.emit('join', `deployment-${deploymentId}`);
+            
+            // Listen for log events
+            socket.on('log', (data) => {
+                appendToLogs(data);
+            });
+            
+            // Listen for status events
+            socket.on('status', (data) => {
+                updateDeploymentStatus(deploymentId, data);
+            });
+        }
+        
+        // Append log message to logs container
+        function appendToLogs(data) {
+            const logsContainer = document.getElementById('logs');
+            const logEntry = document.createElement('div');
+            
+            // Set class based on message type
+            let logClass = 'log-message';
+            if (data.type) {
+                logClass += ` log-${data.type}`;
+            }
+            
+            logEntry.className = logClass;
+            logEntry.textContent = data.message;
+            
+            logsContainer.appendChild(logEntry);
+            
+            // Auto-scroll to bottom
+            logsContainer.scrollTop = logsContainer.scrollHeight;
+        }
+        
+        // Poll for deployment status
+        function pollDeploymentStatus(deploymentId) {
+            const statusElement = document.getElementById(`status-${deploymentId}`);
+            
+            // Function to check status
+            function checkStatus() {
+                fetch(`/status/${deploymentId}`)
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error('Failed to fetch deployment status');
+                        }
+                        return response.json();
+                    })
+                    .then(data => {
+                        // Update status display
+                        if (statusElement) {
+                            statusElement.textContent = data.status.charAt(0).toUpperCase() + data.status.slice(1);
+                            statusElement.className = `status-${data.status}`;
+                        }
+                        
+                        // If we have a URL, update the deployment info
+                        if (data.url && data.status === 'running') {
+                            document.getElementById('deployment-info').innerHTML = `
+                                <h3>Repository: ${data.repoUrl}</h3>
+                                <p>Deployment ID: ${data.id}</p>
+                                <p>Status: <span class="status-running">Running</span></p>
+                                <p>Type: ${data.type === 'nodejs' ? 'Node.js Application' : 'Static Website'}</p>
+                                <p>Access URL: <a href="${data.url}" target="_blank">${data.url}</a></p>
+                                <button class="cleanup-button" onclick="cleanupDeployment('${data.id}')">Stop & Cleanup</button>
+                            `;
+                            
+                            // Stop polling if app is running
+                            return;
+                        }
+                        
+                        // Continue polling if not running yet
+                        if (data.status !== 'failed' && data.status !== 'stopped') {
+                            setTimeout(checkStatus, 2000);
+                        } else if (data.status === 'failed') {
+                            document.getElementById('deployment-info').innerHTML += `
+                                <p class="error">Deployment failed</p>
+                                <button class="cleanup-button" onclick="cleanupDeployment('${data.id}')">Cleanup</button>
+                            `;
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error fetching status:', error);
+                        // Try again after a delay
+                        setTimeout(checkStatus, 5000);
+                    });
+            }
+            
+            // Start checking
+            checkStatus();
+        }
+        
+        // Update deployment status based on socket event
+        function updateDeploymentStatus(deploymentId, data) {
+            const statusElement = document.getElementById(`status-${deploymentId}`);
+            if (statusElement) {
+                statusElement.textContent = data.status.charAt(0).toUpperCase() + data.status.slice(1);
+                statusElement.className = `status-${data.status}`;
+            }
+            
+            if (data.url && data.status === 'running') {
+                document.getElementById('deployment-info').innerHTML = `
+                    <h3>Repository: ${currentDeployment.repoUrl}</h3>
+                    <p>Deployment ID: ${deploymentId}</p>
+                    <p>Status: <span class="status-running">Running</span></p>
+                    <p>Type: ${data.type === 'nodejs' ? 'Node.js Application' : 'Static Website'}</p>
+                    <p>Access URL: <a href="${data.url}" target="_blank">${data.url}</a></p>
+                    <button class="cleanup-button" onclick="cleanupDeployment('${deploymentId}')">Stop & Cleanup</button>
+                `;
+                
+                // Update the deployments list
+                loadDeployments();
+            }
+        }
+        
+        // Load active deployments
+        function loadDeployments() {
+            fetch('/deployments')
+                .then(response => response.json())
+                .then(deployments => {
+                    const deploymentsContainer = document.getElementById('deployments-list');
+                    
+                    if (deployments.length === 0) {
+                        deploymentsContainer.innerHTML = '<p class="no-deployments">No active deployments</p>';
+                        return;
+                    }
+                    
+                    let html = '';
+                    deployments.forEach(deployment => {
+                        html += `
+                            <div class="deployment-item">
+                                <div class="deployment-header">
+                                    <h3>${getRepoName(deployment.repoUrl)}</h3>
+                                    <span class="status-badge status-${deployment.status}">${deployment.status}</span>
+                                </div>
+                                <div class="deployment-body">
+                                    <p>ID: ${deployment.id}</p>
+                                    <p>Type: ${deployment.type === 'nodejs' ? 'Node.js' : 'Static'}</p>
+                                    ${deployment.url ? `<p>URL: <a href="${deployment.url}" target="_blank">${deployment.url}</a></p>` : ''}
+                                    <p>Created: ${formatDate(deployment.createdAt)}</p>
+                                    <div class="deployment-actions">
+                                        <button onclick="viewLogs('${deployment.id}')">View Logs</button>
+                                        <button class="cleanup-button" onclick="cleanupDeployment('${deployment.id}')">Stop & Cleanup</button>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    });
+                    
+                    deploymentsContainer.innerHTML = html;
+                })
+                .catch(error => {
+                    console.error('Error loading deployments:', error);
+                });
+        }
+        
+        // Extract repo name from URL
+        function getRepoName(url) {
+            if (!url) return 'Unknown Repository';
+            
+            // Remove trailing slash if present
+            url = url.endsWith('/') ? url.slice(0, -1) : url;
+            
+            // Get the last part of the URL (the repo name)
+            const parts = url.split('/');
+            return parts[parts.length - 1];
+        }
+        
+        // Format date
+        function formatDate(dateString) {
+            const date = new Date(dateString);
+            return date.toLocaleString();
+        }
+        
+        // View logs for a deployment
+        function viewLogs(deploymentId) {
+            // Set current deployment
+            currentDeployment = deploymentId;
+            
+            // Clear previous logs
+            document.getElementById('logs').innerHTML = '';
+            
+            // Show logs container
+            document.getElementById('logs-container').style.display = 'block';
+            document.getElementById('deployment-info').innerHTML = '<p>Loading deployment information...</p>';
+            
+            // Fetch deployment status
+            fetch(`/status/${deploymentId}`)
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('deployment-info').innerHTML = `
+                        <h3>Repository: ${data.repoUrl}</h3>
+                        <p>Deployment ID: ${data.id}</p>
+                        <p>Status: <span class="status-${data.status}">${data.status.charAt(0).toUpperCase() + data.status.slice(1)}</span></p>
+                        ${data.url ? `<p>Access URL: <a href="${data.url}" target="_blank">${data.url}</a></p>` : ''}
+                        <button class="cleanup-button" onclick="cleanupDeployment('${data.id}')">Stop & Cleanup</button>
+                    `;
+                    
+                    // Join socket room for this deployment
+                    joinDeploymentRoom(deploymentId);
+                })
+                .catch(error => {
+                    console.error('Error fetching deployment info:', error);
+                    document.getElementById('deployment-info').innerHTML = '<p class="error">Error loading deployment information</p>';
+                });
+        }
+        
+        // Cleanup/stop a deployment
+        function cleanupDeployment(deploymentId) {
+            if (!confirm('Are you sure you want to stop and remove this deployment?')) {
+                return;
+            }
+            
+            fetch(`/cleanup/${deploymentId}`, {
+                method: 'DELETE'
+            })
+                .then(response => response.json())
+                .then(data => {
+                    appendToLogs({
+                        message: data.message,
+                        type: 'success'
+                    });
+                    
+                    // Update deployments list
+                    loadDeployments();
+                    
+                    // If this was the current deployment, update UI
+                    if (deploymentId === currentDeployment) {
+                        document.getElementById('deployment-info').innerHTML += '<p class="success">Deployment has been stopped and cleaned up</p>';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error cleaning up deployment:', error);
+                    appendToLogs({
+                        message: `Error cleaning up deployment: ${error.message}`,
+                        type: 'error'
+                    });
+                });
+        }
+        
+        // Load deployments on page load
+        window.addEventListener('load', loadDeployments);
     </script>
 </body>
 </html>
